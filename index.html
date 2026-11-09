@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GraphSolver | Editor de grafos</title>
+  <link rel="stylesheet" href="static/css/style.css">
+  <script src="https://unpkg.com/cytoscape@3.30.4/dist/cytoscape.min.js" defer></script>
+  <script src="static/js/algorithms.js" defer></script>
+  <script src="static/js/graph.js" defer></script>
+  <script src="static/js/matrices.js" defer></script>
+</head>
+<body>
+  <header><h1>GraphSolver</h1><span>Editor visual de grafos</span></header>
+  <main>
+    <aside class="panel">
+      <h2>Herramientas</h2>
+      <button id="add-mode" class="active">＋ Agregar nodos</button>
+      <button id="edge-mode">↗ Conectar nodos</button>
+      <button id="move-mode">✥ Mover / seleccionar</button>
+      <button id="delete-selected" class="danger">Eliminar seleccionado</button>
+      <label class="toggle"><input type="checkbox" id="directed"> Grafo dirigido</label>
+      <label class="toggle"><input type="checkbox" id="weighted" checked> Grafo ponderado (solicitar pesos)</label>
+      <button id="clear" class="secondary">Limpiar todo</button>
+      <button id="validate" class="secondary">Validar Grafo</button>
+      <h2>Árboles de expansión</h2>
+      <label class="field">Algoritmo<select id="algorithm"><option value="kruskal">Algoritmo de Kruskal</option><option value="prim">Algoritmo de Prim</option></select></label>
+      <button id="solve" class="solve">▶ Resolver grafo</button>
+      <h2>Algoritmos de caminos más cortos</h2>
+      <label class="field">Algoritmo<select id="path-algorithm"><option value="dijkstra">Dijkstra</option><option value="bellman_ford">Bellman-Ford</option><option value="floyd_warshall">Floyd-Warshall</option></select></label>
+      <label class="field">Origen<select id="path-source"></select></label>
+      <label class="field">Destino<select id="path-target"></select></label>
+      <button id="solve-path" class="solve">▶ Resolver camino mínimo</button>
+      <!-- Controles conservados para compatibilidad; sección retirada de la interfaz. -->
+      <div hidden id="traversal-controls-hidden">
+      <h2>Recorridos y análisis · Fase 4</h2>
+      <label class="field">Algoritmo<select id="traversal-algorithm"><option value="bfs">BFS (anchura)</option><option value="dfs">DFS (profundidad)</option><option value="cycles">Detección de ciclos</option><option value="topological">Ordenamiento topológico</option></select></label>
+      <label class="field" id="traversal-source-field">Nodo inicial<select id="traversal-source"></select></label>
+      <button id="solve-traversal" class="solve">▶ Ejecutar análisis</button>
+      </div>
+      <h2>Representación Matricial</h2>
+      <button id="matrix-refresh" class="secondary">▦ Obtener matrices del grafo</button>
+      <button id="matrix-load" class="secondary">↗ Generar grafo desde matriz</button>
+    </aside>
+    <section class="workspace">
+      <div class="workspace-heading"><h2>Área de trabajo</h2><small></small></div>
+      <div class="graph-layout">
+        <div id="cy" aria-label="Editor interactivo de grafos"></div>
+        <aside class="graph-info" aria-label="Información del grafo">
+          <h2>Información del grafo</h2>
+      <h2>Información</h2>
+      <div id="stats">Nodos: 0 | Aristas: 0</div>
+      <p id="status" role="status">Haz clic en el lienzo para crear nodos.</p>
+          <h3>Nodos</h3>
+          <div id="node-list" class="graph-detail-list">Sin nodos</div>
+          <h3>Aristas</h3>
+          <div id="edge-list" class="graph-detail-list">Sin aristas</div>
+          <div id="graph-type" class="graph-type"></div>
+        </aside>
+      </div>
+      <section id="matrix-panel" class="result" hidden>
+        <h2>Representación matricial</h2>
+        <p class="matrix-help">Una celda vacía significa que no existe arista. El número 0 también puede representar una arista de peso cero.</p>
+        <div class="matrix-toolbar">
+          <label>Representación <select id="matrix-kind"><option value="adjacency">Adyacencia ponderada</option><option value="incidence">Incidencia</option></select></label>
+          <label><input type="checkbox" id="matrix-directed"> Dirigido</label>
+          <label>Vértices <input id="matrix-size" type="number" min="1" max="30" value="4"></label>
+          <label id="matrix-columns-field" hidden>Aristas <input id="matrix-columns" type="number" min="0" max="400" value="3"></label>
+          <button id="matrix-new">Crear matriz vacía</button>
+          <button id="matrix-apply">Generar grafo</button>
+          <button id="matrix-export">Descargar CSV</button>
+        </div>
+        <div id="matrix-error" role="status"></div>
+        <h3 id="matrix-caption">Matriz de adyacencia</h3>
+        <div id="matrix-grid" class="table-wrap"></div>
+        <div id="matrix-weights"></div>
+        <p class="matrix-help">Al generar un grafo se reemplazará el lienzo actual. Luego podrás resolverlo con los algoritmos de la izquierda.</p>
+      </section>
+      <section id="result" class="result" hidden>
+        <h2>Resultado: <span id="result-title"></span></h2>
+        <div class="mst-summary"><div class="mst-summary-card"><strong>Árbol mínimo</strong><span id="mst-min-total">—</span><small id="mst-min-count"></small><div class="mst-weight-sum" id="mst-min-sum" aria-label="Sumatoria de pesos del árbol mínimo"></div></div><div class="mst-summary-card"><strong>Árbol máximo</strong><span id="mst-max-total">—</span><small id="mst-max-count"></small><div class="mst-weight-sum" id="mst-max-sum" aria-label="Sumatoria de pesos del árbol máximo"></div></div></div><div class="mst-view"><span>Procedimiento:</span><button type="button" id="mst-view-min" class="active">Ver mínimo</button><button type="button" id="mst-view-max">Ver máximo</button></div><p id="result-total"></p>
+        <div class="playback"><button id="step-prev">← Anterior</button><span id="step-counter"></span><button id="step-next">Siguiente →</button><button id="step-all">Ver solución completa</button></div>
+        <div class="auto-controls" data-player="step"><button type="button" class="auto-play">▶ Reproducir</button><button type="button" class="auto-pause" disabled>⏸ Pausar</button><label>Velocidad <select class="auto-speed"><option value="1800">Lenta</option><option value="950" selected>Normal</option><option value="350">Rápida</option></select></label><span class="auto-state" aria-live="polite">Listo para reproducir</span></div>
+        <div class="table-wrap"><table><thead><tr><th>Iteración</th><th>Arista</th><th>Peso</th><th>Decisión</th><th>Explicación</th></tr></thead><tbody id="step-rows"></tbody></table></div>
+      </section>
+      <section id="path-result" class="result" hidden>
+        <h2>Camino mínimo: <span id="path-title"></span></h2>
+        <p id="path-summary"></p>
+        <div class="playback"><button id="path-prev">← Anterior</button><span id="path-counter"></span><button id="path-next">Siguiente →</button><button id="path-all">Ver resultado</button></div>
+        <div class="auto-controls" data-player="path"><button type="button" class="auto-play">▶ Reproducir</button><button type="button" class="auto-pause" disabled>⏸ Pausar</button><label>Velocidad <select class="auto-speed"><option value="1800">Lenta</option><option value="950" selected>Normal</option><option value="350">Rápida</option></select></label><span class="auto-state" aria-live="polite">Listo para reproducir</span></div>
+        <p id="path-action"></p>
+        <div class="table-wrap"><table><thead><tr><th>Nodo</th><th>Distancia desde origen</th></tr></thead><tbody id="path-rows"></tbody></table></div>
+        <div id="path-matrix"></div>
+      </section>
+      <section id="traversal-result" class="result" hidden>
+        <h2>Recorridos y análisis: <span id="traversal-title"></span></h2>
+        <p id="traversal-summary"></p>
+        <div class="playback"><button id="traversal-prev">← Anterior</button><span id="traversal-counter"></span><button id="traversal-next">Siguiente →</button><button id="traversal-all">Ver resultado</button></div>
+        <div class="auto-controls" data-player="traversal"><button type="button" class="auto-play">▶ Reproducir</button><button type="button" class="auto-pause" disabled>⏸ Pausar</button><label>Velocidad <select class="auto-speed"><option value="1800">Lenta</option><option value="950" selected>Normal</option><option value="350">Rápida</option></select></label><span class="auto-state" aria-live="polite">Listo para reproducir</span></div>
+        <p id="traversal-action"></p>
+        <div class="table-wrap"><table><thead><tr><th>Iteración</th><th>Acción</th><th>Nodos visitados</th></tr></thead><tbody id="traversal-rows"></tbody></table></div>
+      </section>
+    </section>
+  </main>
+</body>
+</html>

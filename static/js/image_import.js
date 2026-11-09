@@ -58,6 +58,67 @@
   }
   renderList();draw();msg(`Detecté ${state.nodes.length} nodos y ${state.edges.length} posibles aristas. IMPORTANTE: las etiquetas son provisionales y los pesos valen 1; revisa y corrige antes de resolver.`);
  }
+ // OCR opcional: Tesseract se carga solamente al solicitar reconocimiento.
+ let ocrLoading=null;
+ function loadOCR(){
+  if(window.Tesseract)return Promise.resolve(window.Tesseract);
+  if(ocrLoading)return ocrLoading;
+  ocrLoading=new Promise((resolve,reject)=>{
+   const script=document.createElement('script');
+   script.src='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+   script.onload=()=>window.Tesseract?resolve(window.Tesseract):reject(new Error('OCR no disponible'));
+   script.onerror=()=>reject(new Error('No se pudo cargar el motor OCR. Revisa tu conexión.'));
+   document.head.appendChild(script);
+  }).catch(e=>{ocrLoading=null;throw e;});
+  return ocrLoading;
+ }
+ function cropImage(x,y,ww,hh,scale=4){
+  const c=document.createElement('canvas');c.width=Math.max(1,Math.round(ww*scale));c.height=Math.max(1,Math.round(hh*scale));
+  const cc=c.getContext('2d',{willReadFrequently:true});cc.fillStyle='#fff';cc.fillRect(0,0,c.width,c.height);
+  cc.imageSmoothingEnabled=true;cc.imageSmoothingQuality='high';
+  cc.drawImage(state.image,x*state.image.width/canvas.width,y*state.image.height/canvas.height,ww*state.image.width/canvas.width,hh*state.image.height/canvas.height,0,0,c.width,c.height);
+  return c;
+ }
+ function parseOCR(result){
+  const raw=(result?.data?.text||'').replace(/[,]/g,'.').trim();
+  const matches=raw.match(/-?\d+(?:\.\d+)?/g)||[];
+  const conf=result?.data?.confidence??0;
+  return matches.length===1&&conf>=35?{value:matches[0],confidence:conf}:null;
+ }
+ async function recognizeNumbers(){
+  if(!state.image)return msg('Primero selecciona una fotografía.');
+  if(!state.nodes.length)return msg('Primero pulsa «Detectar nodos y aristas» o agrega nodos manualmente.');
+  const btn=$('image-import-ocr');btn.disabled=true;
+  let worker;
+  try{
+   msg('Cargando OCR… requiere conexión a internet la primera vez.');
+   const T=await loadOCR();worker=await T.createWorker('eng');
+   await worker.setParameters({tessedit_char_whitelist:'0123456789.-',tessedit_pageseg_mode:T.PSM?.SINGLE_WORD||'8'});
+   let recognizedNodes=0,recognizedWeights=0;
+   for(let i=0;i<state.nodes.length;i++){
+    const n=state.nodes[i],r=Math.max(12,Math.min(n.r||19,32));
+    const c=cropImage(n.x-r*.8,n.y-r*.7,r*1.6,r*1.4);
+    const v=parseOCR(await worker.recognize(c));
+    if(v){n.label=v.value;recognizedNodes++;}
+    msg(`Leyendo etiquetas: ${i+1}/${state.nodes.length}…`);
+   }
+   for(let i=0;i<state.edges.length;i++){
+    const e=state.edges[i],a=state.nodes[e.a],b=state.nodes[e.b];
+    // La etiqueta de peso suele estar cerca del centro de la arista.
+    // Evitamos asignar números cuando el recorte contiene otro nodo.
+    const x=(a.x+b.x)/2,y=(a.y+b.y)/2;
+    if(state.nodes.some((n,k)=>k!==e.a&&k!==e.b&&Math.hypot(n.x-x,n.y-y)<(n.r||18)+22))continue;
+    const c=cropImage(x-24,y-23,48,46);
+    const v=parseOCR(await worker.recognize(c));
+    if(v){e.weight=Number(v.value);e.ocrVerified=true;recognizedWeights++;}
+    msg(`Leyendo pesos: ${i+1}/${state.edges.length}…`);
+   }
+   renderList();draw();
+   msg(`OCR terminado: ${recognizedNodes}/${state.nodes.length} etiquetas y ${recognizedWeights}/${state.edges.length} pesos detectados. Verifica TODOS los valores antes de resolver; los pesos no reconocidos siguen en 1 como valor provisional.`);
+  }catch(err){msg(`No se pudo completar el OCR: ${err.message}. Puedes editar los datos manualmente.`);}
+  finally{if(worker)await worker.terminate();btn.disabled=false;}
+ }
+ $('image-import-ocr').onclick=recognizeNumbers;
  $('image-import-detect').onclick=detectGraph;
  $('image-import-apply').onclick=()=>{if(!state.nodes.length)return msg('Marca al menos un nodo.');if(cy.elements().length&&!confirm('¿Reemplazar el grafo actual por el importado?'))return;cy.elements().remove();let maxId=0;state.nodes.forEach((n,i)=>{const id=`img_${i+1}`;cy.add({group:'nodes',data:{id,label:n.label},position:{x:n.x,y:n.y}});maxId++;});state.edges.forEach((e,i)=>{cy.add({group:'edges',data:{id:`img_edge_${i}`,source:`img_${e.a+1}`,target:`img_${e.b+1}`,weight:e.weight,shape:'straight',curveDistance:65}});});cy.fit(cy.elements(),40);nextId=Math.max(nextId,maxId+1);updateStats();$('image-import-dialog').hidden=true;setMode('move');setStatus(`Grafo importado: ${state.nodes.length} nodos y ${state.edges.length} aristas. Ya puedes resolverlo.`);};
 })();

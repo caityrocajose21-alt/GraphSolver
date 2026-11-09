@@ -31,16 +31,16 @@
   if(!state.image){msg('Primero carga una imagen.');return;}
   const {data,w,h}=imagePixels();const seen=new Uint8Array(w*h);const components=[];
   // Detectar regiones azules/cian saturadas (nodos rellenos como los del ejemplo).
-  const isNode=(idx)=>{const k=idx*4,r=data[k],g=data[k+1],b=data[k+2];return b>105&&b>r*1.17&&g>r*1.18&&g>75&&b>g*.82&&Math.max(r,g,b)-Math.min(r,g,b)>32;};
+  const isNode=(idx)=>{const k=idx*4,r=data[k],g=data[k+1],b=data[k+2];return b>105&&b>r*1.12&&g>r*1.12&&g>70&&b>g*.78&&Math.max(r,g,b)-Math.min(r,g,b)>24;};
   for(let y=0;y<h;y+=1)for(let x=0;x<w;x+=1){const root=y*w+x;if(seen[root]||!isNode(root))continue;const q=[root];seen[root]=1;let minx=x,maxx=x,miny=y,maxy=y,sx=0,sy=0,n=0;
    for(let head=0;head<q.length;head++){const v=q[head],vx=v%w,vy=(v/w)|0;n++;sx+=vx;sy+=vy;minx=Math.min(minx,vx);maxx=Math.max(maxx,vx);miny=Math.min(miny,vy);maxy=Math.max(maxy,vy);
     for(const z of [v-1,v+1,v-w,v+w]){if(z<0||z>=w||seen[z])continue;const zx=z%w,zy=(z/w)|0;if(Math.abs(zx-vx)+Math.abs(zy-vy)!==1)continue;if(isNode(z)){seen[z]=1;q.push(z);}}
    }
    const bw=maxx-minx+1,bh=maxy-miny+1,area=bw*bh;
-   if(n>=65&&bw>=12&&bh>=12&&bw/bh>.55&&bw/bh<1.65&&n/area>.28&&n/area<.97&&bw<w*.23&&bh<h*.23)components.push({x:sx/n,y:sy/n,r:Math.max(bw,bh)/2,area:n});
+   if(n>=35&&bw>=9&&bh>=9&&bw/bh>.6&&bw/bh<1.55&&n/area>.25&&bw<w*.23&&bh<h*.23)components.push({x:sx/n,y:sy/n,r:Math.max(bw,bh)/2,area:n});
   }
   components.sort((a,b)=>b.area-a.area);const picked=[];for(const c of components){if(picked.length>=60)break;if(picked.some(n=>Math.hypot(n.x-c.x,n.y-c.y)<Math.max(n.r,c.r)*1.4))continue;picked.push(c);}
-  if(!picked.length){msg('No detecté nodos de color. Para grafos dibujados a mano, agrega nodos y conexiones manualmente.');return;}
+  if(!picked.length){msg(`No se detectaron nodos: imagen de ${w}×${h} píxeles. Prueba una captura nítida, o marca los nodos manualmente.`);return;}
   picked.sort((a,b)=>a.y-b.y||a.x-b.x);
   state.nodes=picked.map((n,i)=>({x:n.x,y:n.y,label:String(i+1),r:n.r}));state.edges=[];state.pending=null;
   // Evaluar segmentos rectos oscuros entre cada par de centros, evitando círculos y cruces.
@@ -54,7 +54,7 @@
     valid++;const dx=-(b.y-a.y)/len,dy=(b.x-a.x)/len;
     if(Math.min(gray(x,y),gray(x+dx*1.5,y+dy*1.5),gray(x-dx*1.5,y-dy*1.5))<185)hits++;
    }
-   if(valid>=10&&valid/count>.43&&hits/valid>.69&&blocks/count<.3)state.edges.push({a:i,b:j,weight:1});
+   if(valid>=10&&valid/count>.43&&hits/valid>.55&&blocks/count<.3)state.edges.push({a:i,b:j,weight:1});
   }
   renderList();draw();msg(`Detecté ${state.nodes.length} nodos y ${state.edges.length} posibles aristas. IMPORTANTE: las etiquetas son provisionales y los pesos valen 1; revisa y corrige antes de resolver.`);
  }

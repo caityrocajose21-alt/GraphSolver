@@ -48,3 +48,7 @@ button:focus-visible,select:focus-visible{outline:2px solid #91b4ff;outline-offs
 
 /* Desglose de los pesos del árbol mínimo y máximo */
 .mst-weight-sum{font-size:.92rem;color:#e6efff;line-height:1.5;overflow-wrap:anywhere;border-top:1px solid #405474;padding-top:9px;margin-top:3px;font-variant-numeric:tabular-nums}
+
+/* Permite gestos sobre el lienzo en dispositivos táctiles. */
+#cy, #cy canvas {touch-action:none;}
+@media (pointer:coarse){.curve-handle{width:32px;height:32px}}

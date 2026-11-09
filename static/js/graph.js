@@ -79,6 +79,64 @@ curveHandle.addEventListener('pointercancel',finishCurveDrag);
 cy.on('select unselect add remove data position pan zoom','node, edge',refreshCurveHandle);
 cy.on('pan zoom',refreshCurveHandle);
 
+// Edición táctil y con ratón directamente sobre una arista curva.
+// Se usa tapstart para identificar la arista y eventos pointermove globales
+// para continuar el gesto aunque el dedo salga del trazo fino de la curva.
+let directCurveDrag=null;
+cy.on('tapstart','edge',event=>{
+  if(mode!=='move' || !event.target.hasClass('curved'))return;
+  const original=event.originalEvent;
+  const point=original?.touches?.[0] || original?.changedTouches?.[0] || original;
+  if(!point || !Number.isFinite(point.clientX) || !Number.isFinite(point.clientY))return;
+  const edge=event.target;
+  directCurveDrag={edge,startX:point.clientX,startY:point.clientY,
+    startDistance:Number(edge.data('curveDistance'))||0,
+    moved:false,oldPanning:cy.userPanningEnabled()};
+});
+function moveDirectCurve(event){
+  const drag=directCurveDrag;
+  if(!drag || mode!=='move' || !drag.edge.inside())return;
+  // No interceptar un toque simple; distinguir el gesto del doble toque.
+  const dx=event.clientX-drag.startX,dy=event.clientY-drag.startY;
+  if(!drag.moved && Math.hypot(dx,dy)<7)return;
+  if(!drag.moved){
+    drag.moved=true;
+    cy.userPanningEnabled(false);
+    drag.edge.select();
+    lastEdgeTap=null;
+  }
+  if(event.cancelable)event.preventDefault();
+  const g=curveGeometry(drag.edge);
+  if(!g)return;
+  const delta=(dx*g.nx+dy*g.ny)/cy.zoom();
+  drag.edge.data('curveDistance',Math.max(-1200,Math.min(1200,Math.round(drag.startDistance+delta))));
+  refreshCurveHandle();
+}
+function endDirectCurveDrag(){
+  if(!directCurveDrag)return;
+  if(directCurveDrag.moved){
+    cy.userPanningEnabled(directCurveDrag.oldPanning);
+    lastEdgeTap=null;
+    setStatus('Curvatura ajustada. Puedes arrastrar nuevamente la arista.');
+  }
+  directCurveDrag=null;
+}
+// En móviles algunos navegadores envían touchmove en vez de pointermove.
+// Los listeners son pasivos solo donde no se necesita cancelar el gesto.
+document.addEventListener('pointermove',moveDirectCurve,{passive:false});
+document.addEventListener('pointerup',endDirectCurveDrag);
+document.addEventListener('pointercancel',endDirectCurveDrag);
+// Soporte para Safari/iOS y versiones de Cytoscape que emiten eventos táctiles.
+document.addEventListener('touchmove',event=>{
+  if(directCurveDrag && event.touches.length===1){
+    const t=event.touches[0];
+    moveDirectCurve({clientX:t.clientX,clientY:t.clientY,cancelable:event.cancelable,preventDefault:()=>event.preventDefault()});
+  }
+},{passive:false});
+document.addEventListener('touchend',endDirectCurveDrag);
+document.addEventListener('touchcancel',endDirectCurveDrag);
+
+
 function setStatus(message){status.textContent = message;}
 function updateStats(){
   document.getElementById('stats').textContent = `Nodos: ${cy.nodes().length} | Aristas: ${cy.edges().length}`;
@@ -144,7 +202,7 @@ cy.on('tap','edge',event=>{
     cy.elements().unselect();
     edge.select();
     refreshCurveHandle();
-    setStatus(curved?'Arista recta. Haz doble clic para convertirla en curva.':'Arista curva. Arrastra el punto naranja para ajustar su forma.');
+    setStatus(curved?'Arista recta. Haz doble clic para convertirla en curva.':'Arista curva. Arrástrala directamente con el dedo o el mouse para ajustarla.');
   }else{
     lastEdgeTap={id:edge.id(),time:now};
   }

@@ -31,3 +31,9 @@ La interfaz carga **Cytoscape.js** desde un CDN público. Para verla es necesari
 
 ## Nota
 Los mensajes de error se muestran en la interfaz. Esta es una adaptación del proyecto Flask suministrado, no un despliegue del backend original.
+
+## Importar grafo desde imagen
+
+Pulsa «Importar grafo desde imagen», toma una foto o selecciona un archivo. La opción «Detectar nodos» realiza una búsqueda **experimental** de círculos oscuros y puede producir falsos positivos. Revisa el resultado: con «+ Nodo» marca los nodos que falten, con «Conectar» selecciona dos nodos y cambia el peso (inicialmente 1) en la lista. Finalmente pulsa «Importar al editor y resolver» y ejecuta el algoritmo que necesites.
+
+**Limitación:** esta versión no reconoce automáticamente todas las aristas ni lee los pesos por OCR; deben verificarse e introducirse manualmente. No envía la fotografía a un servidor. Compatible con GitHub Pages.

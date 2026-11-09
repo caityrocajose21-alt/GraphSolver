@@ -29,34 +29,84 @@
  function imagePixels(){const off=document.createElement('canvas');off.width=canvas.width;off.height=canvas.height;const c=off.getContext('2d',{willReadFrequently:true});c.drawImage(state.image,0,0,off.width,off.height);return {data:c.getImageData(0,0,off.width,off.height).data,w:off.width,h:off.height};}
  function detectGraph(){
   if(!state.image){msg('Primero carga una imagen.');return;}
-  const {data,w,h}=imagePixels();const seen=new Uint8Array(w*h);const components=[];
-  // Detectar regiones azules/cian saturadas (nodos rellenos como los del ejemplo).
-  const isNode=(idx)=>{const k=idx*4,r=data[k],g=data[k+1],b=data[k+2];return b>105&&b>r*1.12&&g>r*1.12&&g>70&&b>g*.78&&Math.max(r,g,b)-Math.min(r,g,b)>24;};
-  for(let y=0;y<h;y+=1)for(let x=0;x<w;x+=1){const root=y*w+x;if(seen[root]||!isNode(root))continue;const q=[root];seen[root]=1;let minx=x,maxx=x,miny=y,maxy=y,sx=0,sy=0,n=0;
-   for(let head=0;head<q.length;head++){const v=q[head],vx=v%w,vy=(v/w)|0;n++;sx+=vx;sy+=vy;minx=Math.min(minx,vx);maxx=Math.max(maxx,vx);miny=Math.min(miny,vy);maxy=Math.max(maxy,vy);
-    for(const z of [v-1,v+1,v-w,v+w]){if(z<0||z>=w||seen[z])continue;const zx=z%w,zy=(z/w)|0;if(Math.abs(zx-vx)+Math.abs(zy-vy)!==1)continue;if(isNode(z)){seen[z]=1;q.push(z);}}
+  const {data,w,h}=imagePixels(),size=w*h;
+  const luminance=new Uint8Array(size),colored=new Uint8Array(size);
+  for(let k=0;k<size;k++){
+   const r=data[k*4],g=data[k*4+1],b=data[k*4+2];
+   luminance[k]=Math.round(.299*r+.587*g+.114*b);
+   // Admitir celeste poco saturado, azul, verde y círculos coloreados.
+   const max=Math.max(r,g,b),min=Math.min(r,g,b);
+   colored[k]=(max-min>18&&max>85&&luminance[k]>65&&
+     ((b>r+12&&g>r+8)||(r>g+18&&r>b+18)||(g>r+14&&g>b+8)))?1:0;
+  }
+  const seen=new Uint8Array(size),components=[];
+  // Componentes de color: usar una cola de índices sin recrear arreglos por píxel.
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+   const root=y*w+x;if(!colored[root]||seen[root])continue;
+   const queue=[root];seen[root]=1;
+   let sx=0,sy=0,n=0,minx=x,maxx=x,miny=y,maxy=y;
+   for(let head=0;head<queue.length;head++){
+    const v=queue[head],vx=v%w,vy=(v/w)|0;
+    sx+=vx;sy+=vy;n++;minx=Math.min(minx,vx);maxx=Math.max(maxx,vx);miny=Math.min(miny,vy);maxy=Math.max(maxy,vy);
+    if(vx>0&&colored[v-1]&&!seen[v-1]){seen[v-1]=1;queue.push(v-1);}
+    if(vx<w-1&&colored[v+1]&&!seen[v+1]){seen[v+1]=1;queue.push(v+1);}
+    if(vy>0&&colored[v-w]&&!seen[v-w]){seen[v-w]=1;queue.push(v-w);}
+    if(vy<h-1&&colored[v+w]&&!seen[v+w]){seen[v+w]=1;queue.push(v+w);}
    }
    const bw=maxx-minx+1,bh=maxy-miny+1,area=bw*bh;
-   if(n>=35&&bw>=9&&bh>=9&&bw/bh>.6&&bw/bh<1.55&&n/area>.25&&bw<w*.23&&bh<h*.23)components.push({x:sx/n,y:sy/n,r:Math.max(bw,bh)/2,area:n});
+   if(n>=18&&bw>=7&&bh>=7&&bw/bh>.62&&bw/bh<1.5&&n/area>.28&&bw<w*.15&&bh<h*.15)
+    components.push({x:sx/n,y:sy/n,r:Math.max(bw,bh)/2,score:n/area,kind:'color'});
   }
-  components.sort((a,b)=>b.area-a.area);const picked=[];for(const c of components){if(picked.length>=60)break;if(picked.some(n=>Math.hypot(n.x-c.x,n.y-c.y)<Math.max(n.r,c.r)*1.4))continue;picked.push(c);}
-  if(!picked.length){msg(`No se detectaron nodos: imagen de ${w}×${h} píxeles. Prueba una captura nítida, o marca los nodos manualmente.`);return;}
+  // Para nodos sin relleno (grafos dibujados a mano), buscar anillos oscuros.
+  // Se exige cobertura angular, no solo una línea que atraviese la región.
+  const candidates=[];
+  const angles=Array.from({length:20},(_,i)=>[Math.cos(i*Math.PI/10),Math.sin(i*Math.PI/10)]);
+  const getLum=(x,y)=>luminance[Math.max(0,Math.min(h-1,Math.round(y)))*w+Math.max(0,Math.min(w-1,Math.round(x)))];
+  const maxR=Math.min(31,Math.round(Math.min(w,h)/17));
+  for(let r=6;r<=maxR;r+=2){
+   for(let y=r+2;y<h-r-2;y+=3)for(let x=r+2;x<w-r-2;x+=3){
+    // Evitar duplicar círculos ya identificados por su relleno.
+    if(components.some(c=>Math.hypot(c.x-x,c.y-y)<c.r+4))continue;
+    let ring=0,outer=0,inner=0,covered=0;
+    for(const [dx,dy] of angles){
+     const edge=Math.min(getLum(x+dx*r,y+dy*r),getLum(x+dx*(r-1),y+dy*(r-1)));
+     const outside=getLum(x+dx*(r+3),y+dy*(r+3));
+     const inside=getLum(x+dx*(r*.55),y+dy*(r*.55));
+     if(edge<175&&edge+12<outside){ring++;if(edge+8<inside)covered++;}
+     outer+=outside;inner+=inside;
+    }
+    if(ring>=13&&covered>=10&&outer/20>125&&inner/20>95){
+     const score=ring+covered*.5;
+     if(score>=19)candidates.push({x,y,r,score,kind:'outline'});
+    }
+   }
+  }
+  const picked=[];
+  [...components,...candidates].sort((a,b)=>b.score-a.score).forEach(c=>{
+   if(picked.length>=60)return;
+   if(picked.some(n=>Math.hypot(n.x-c.x,n.y-c.y)<Math.max(9,Math.min(n.r,c.r)*1.3)))return;
+   picked.push(c);
+  });
+  if(!picked.length){state.nodes=[];state.edges=[];renderList();draw();msg(`No se encontraron círculos en la imagen (${w}×${h}). Puedes marcar los nodos manualmente y conectar sus aristas.`);return;}
   picked.sort((a,b)=>a.y-b.y||a.x-b.x);
   state.nodes=picked.map((n,i)=>({x:n.x,y:n.y,label:String(i+1),r:n.r}));state.edges=[];state.pending=null;
-  // Evaluar segmentos rectos oscuros entre cada par de centros, evitando círculos y cruces.
-  const gray=(x,y)=>{x=Math.round(x);y=Math.round(y);if(x<0||y<0||x>=w||y>=h)return 255;const k=(y*w+x)*4;return data[k]*.299+data[k+1]*.587+data[k+2]*.114;};
+  // Medir continuidad de la línea con un umbral adaptado al fondo de la foto.
+  const dark=(x,y)=>getLum(x,y)<205;
   for(let i=0;i<state.nodes.length;i++)for(let j=i+1;j<state.nodes.length;j++){
-   const a=state.nodes[i],b=state.nodes[j],len=Math.hypot(b.x-a.x,b.y-a.y);if(len<25)continue;
-   let valid=0,hits=0,blocks=0;const count=Math.max(20,Math.round(len/2));
-   for(let t=0;t<=count;t++){const u=t/count,x=a.x+(b.x-a.x)*u,y=a.y+(b.y-a.y)*u;
-    if(Math.hypot(x-a.x,y-a.y)<a.r+5||Math.hypot(x-b.x,y-b.y)<b.r+5)continue;
-    if(state.nodes.some((n,k)=>k!==i&&k!==j&&Math.hypot(x-n.x,y-n.y)<n.r+5)){blocks++;continue;}
-    valid++;const dx=-(b.y-a.y)/len,dy=(b.x-a.x)/len;
-    if(Math.min(gray(x,y),gray(x+dx*1.5,y+dy*1.5),gray(x-dx*1.5,y-dy*1.5))<185)hits++;
+   const a=state.nodes[i],b=state.nodes[j],len=Math.hypot(b.x-a.x,b.y-a.y);if(len<20)continue;
+   const dx=-(b.y-a.y)/len,dy=(b.x-a.x)/len;
+   let valid=0,hits=0,blocked=0;const count=Math.max(25,Math.ceil(len/2));
+   for(let t=0;t<=count;t++){
+    const u=t/count,x=a.x+(b.x-a.x)*u,y=a.y+(b.y-a.y)*u;
+    if(Math.hypot(x-a.x,y-a.y)<a.r+3||Math.hypot(x-b.x,y-b.y)<b.r+3)continue;
+    if(state.nodes.some((n,k)=>k!==i&&k!==j&&Math.hypot(n.x-x,n.y-y)<n.r+3)){blocked++;continue;}
+    valid++;
+    if(dark(x,y)||dark(x+dx*2,y+dy*2)||dark(x-dx*2,y-dy*2))hits++;
    }
-   if(valid>=10&&valid/count>.43&&hits/valid>.55&&blocks/count<.3)state.edges.push({a:i,b:j,weight:1});
+   if(valid>=8&&valid/count>.38&&hits/valid>.67&&blocked/count<.25)
+    state.edges.push({a:i,b:j,weight:1});
   }
-  renderList();draw();msg(`Detecté ${state.nodes.length} nodos y ${state.edges.length} posibles aristas. IMPORTANTE: las etiquetas son provisionales y los pesos valen 1; revisa y corrige antes de resolver.`);
+  renderList();draw();msg(`Detección experimental: ${state.nodes.length} nodos y ${state.edges.length} posibles aristas. Revisa las marcas y corrige los pesos antes de importar; los pesos predeterminados son 1.`);
  }
  // OCR opcional: Tesseract se carga solamente al solicitar reconocimiento.
  let ocrLoading=null;

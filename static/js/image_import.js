@@ -12,7 +12,6 @@
  function setTool(tool){state.tool=tool;state.pending=null;document.querySelectorAll('[data-image-tool]').forEach(b=>b.classList.toggle('active',b.dataset.imageTool===tool));draw();}
  document.querySelectorAll('[data-image-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.imageTool));
  const openImporter=()=>{$('image-import-dialog').hidden=false;};
- $('image-import-open').onclick=openImporter;
  $('image-import-open-header').onclick=openImporter;
  $('image-import-gallery').onclick=()=>{$('image-import-file').click();};
  $('image-import-camera').onclick=()=>{$('image-import-camera-file').click();};

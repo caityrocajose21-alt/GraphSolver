@@ -55,3 +55,12 @@ button:focus-visible,select:focus-visible{outline:2px solid #91b4ff;outline-offs
 
 /* Importador de grafos desde fotografías */
 .image-import-dialog[hidden]{display:none!important}.image-import-dialog{position:fixed;inset:0;background:#000b;z-index:9999;display:flex;justify-content:center;align-items:center;padding:12px}.image-import-panel{background:#fff;color:#1e293b;border-radius:12px;width:min(960px,100%);max-height:95vh;overflow:auto;padding:18px;box-sizing:border-box}.image-import-header{display:flex;align-items:center;justify-content:space-between;gap:10px}.image-import-header h2{margin:0}.image-import-tools{display:flex;flex-wrap:wrap;gap:7px;margin:12px 0}.image-import-tools button.active{background:#2563eb;color:white}.image-import-preview{overflow:auto;background:#e2e8f0;border:1px solid #94a3b8;max-height:55vh}.image-import-preview canvas{display:block;width:100%;height:auto;touch-action:manipulation}.import-edge-row{display:flex;align-items:center;gap:10px;margin:6px 0}.import-edge-row input{width:95px;padding:7px;border:1px solid #94a3b8;border-radius:6px}.image-import-panel #image-import-apply{margin-top:12px;width:100%}
+
+/* Importador: botones táctiles independientes para galería y cámara */
+header{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.header-import-button{margin-left:auto;border:1px solid #79a7ff;background:#2454a7;color:white;border-radius:9px;padding:10px 13px;font-weight:700;cursor:pointer}
+.image-import-sources{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:14px 0}
+.image-source-button{min-height:52px;padding:12px;background:#2563eb;color:#fff;border:0;border-radius:9px;font-size:15px;font-weight:700;cursor:pointer;white-space:normal}
+.image-source-button:nth-child(2){background:#0f766e}
+.visually-hidden-file{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+@media(max-width:600px){.image-import-sources{grid-template-columns:1fr}.header-import-button{margin-left:0;width:100%}.image-import-panel{padding:12px}.image-import-header h2{font-size:18px}}

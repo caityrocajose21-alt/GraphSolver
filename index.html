@@ -12,7 +12,7 @@
   <script src="static/js/image_import.js" defer></script>
 </head>
 <body>
-  <header><h1>GraphSolver</h1><span>Editor visual de grafos</span></header>
+  <header><h1>GraphSolver</h1><span>Editor visual de grafos</span><button type="button" id="image-import-open-header" class="header-import-button">📷 Importar imagen</button></header>
   <main>
     <aside class="panel">
       <h2>Herramientas</h2>
@@ -108,7 +108,12 @@
  <div class="image-import-panel">
   <div class="image-import-header"><h2>Importar grafo desde imagen</h2><button type="button" id="image-import-close">Cerrar ×</button></div>
   <p>Sube una foto o usa la cámara. La detección de círculos es experimental: revisa los nodos, conecta las aristas y corrige los pesos antes de importar.</p>
-  <input id="image-import-file" type="file" accept="image/*" capture="environment">
+  <div class="image-import-sources" aria-label="Opciones para cargar imágenes">
+    <button type="button" id="image-import-gallery" class="image-source-button">🖼️ Subir imagen desde galería</button>
+    <button type="button" id="image-import-camera" class="image-source-button">📷 Tomar fotografía</button>
+  </div>
+  <input id="image-import-file" type="file" accept="image/*" class="visually-hidden-file" aria-label="Seleccionar imagen de la galería">
+  <input id="image-import-camera-file" type="file" accept="image/*" capture="environment" class="visually-hidden-file" aria-label="Tomar fotografía con la cámara">
   <div class="image-import-tools"><button id="image-import-detect" type="button">Detectar nodos (experimental)</button><button data-image-tool="node" class="active" type="button">+ Nodo</button><button data-image-tool="edge" type="button">Conectar</button><button data-image-tool="delete" type="button">Borrar nodo</button><button id="image-import-reset" type="button">Reiniciar marcas</button></div>
   <div class="image-import-preview"><canvas id="image-import-canvas" width="800" height="500"></canvas></div>
   <p id="image-import-message" role="status">Selecciona una fotografía para comenzar.</p>

@@ -8,7 +8,7 @@
   state.nodes.forEach((n,i)=>{ctx.beginPath();ctx.arc(n.x,n.y,17,0,Math.PI*2);ctx.fillStyle=i===state.pending?'#f59e0b':'#2563eb';ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();ctx.fillStyle='white';ctx.font='bold 13px sans-serif';ctx.textAlign='center';ctx.fillText(n.label,n.x,n.y+5);});ctx.textAlign='start';
   $('image-import-count').textContent=`${state.nodes.length} nodos · ${state.edges.length} aristas`;
  }
- function renderList(){const area=$('image-import-list');area.replaceChildren();state.edges.forEach((e,i)=>{const row=document.createElement('div');row.className='import-edge-row';const label=document.createElement('span');label.textContent=`${state.nodes[e.a]?.label} — ${state.nodes[e.b]?.label}`;const input=document.createElement('input');input.type='number';input.step='any';input.value=e.weight;input.setAttribute('aria-label','Peso de arista');input.onchange=()=>{if(Number.isFinite(Number(input.value))){e.weight=Number(input.value);draw();}};const del=document.createElement('button');del.textContent='×';del.title='Eliminar arista';del.onclick=()=>{state.edges.splice(i,1);renderList();draw();};row.append(label,input,del);area.appendChild(row);});}
+ function renderList(){const area=$('image-import-list');area.replaceChildren();state.nodes.forEach((n,i)=>{const row=document.createElement('div');row.className='import-edge-row';const label=document.createElement('span');label.textContent=`Nodo ${i+1}`;const input=document.createElement('input');input.value=n.label;input.setAttribute('aria-label',`Nombre del nodo ${i+1}`);input.onchange=()=>{n.label=input.value.trim()||String(i+1);draw();renderList();};row.append(label,input);area.appendChild(row);});state.edges.forEach((e,i)=>{const row=document.createElement('div');row.className='import-edge-row';const label=document.createElement('span');label.textContent=`${state.nodes[e.a]?.label} — ${state.nodes[e.b]?.label}`;const input=document.createElement('input');input.type='number';input.step='any';input.value=e.weight;input.setAttribute('aria-label','Peso de arista');input.onchange=()=>{if(Number.isFinite(Number(input.value))){e.weight=Number(input.value);draw();}};const del=document.createElement('button');del.textContent='×';del.title='Eliminar arista';del.onclick=()=>{state.edges.splice(i,1);renderList();draw();};row.append(label,input,del);area.appendChild(row);});}
  function setTool(tool){state.tool=tool;state.pending=null;document.querySelectorAll('[data-image-tool]').forEach(b=>b.classList.toggle('active',b.dataset.imageTool===tool));draw();}
  document.querySelectorAll('[data-image-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.imageTool));
  const openImporter=()=>{$('image-import-dialog').hidden=false;};
@@ -17,19 +17,48 @@
  $('image-import-gallery').onclick=()=>{$('image-import-file').click();};
  $('image-import-camera').onclick=()=>{$('image-import-camera-file').click();};
  $('image-import-close').onclick=()=>{$('image-import-dialog').hidden=true;};
- function loadSelectedImage(ev){const file=ev.target.files?.[0];if(!file)return;if(!file.type.startsWith('image/')){msg('Selecciona una imagen válida.');return;}const url=URL.createObjectURL(file),img=new Image();img.onload=()=>{URL.revokeObjectURL(url);state.image=img;const scale=Math.min(1,1000/img.width,850/img.height);canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);state.nodes=[];state.edges=[];state.pending=null;renderList();draw();msg('Imagen cargada. Usa Detectar nodos (experimental) o marca los nodos manualmente.');};img.onerror=()=>{URL.revokeObjectURL(url);msg('No se pudo abrir la imagen.');};img.src=url;}
+ function loadSelectedImage(ev){const file=ev.target.files?.[0];if(!file)return;if(!file.type.startsWith('image/')){msg('Selecciona una imagen válida.');return;}const url=URL.createObjectURL(file),img=new Image();img.onload=()=>{URL.revokeObjectURL(url);state.image=img;const scale=Math.min(1,1000/img.width,850/img.height);canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);state.nodes=[];state.edges=[];state.pending=null;renderList();draw();msg('Imagen cargada. Analizando nodos y conexiones…');detectGraph();};img.onerror=()=>{URL.revokeObjectURL(url);msg('No se pudo abrir la imagen.');};img.src=url;}
  $('image-import-file').addEventListener('change',loadSelectedImage);
  $('image-import-camera-file').addEventListener('change',loadSelectedImage);
  function nearest(x,y){let best=-1,dist=26;state.nodes.forEach((n,i)=>{const d=Math.hypot(n.x-x,n.y-y);if(d<dist){best=i;dist=d;}});return best;}
  canvas.addEventListener('click',ev=>{if(!state.image)return;const rect=canvas.getBoundingClientRect(),x=(ev.clientX-rect.left)*canvas.width/rect.width,y=(ev.clientY-rect.top)*canvas.height/rect.height;const i=nearest(x,y);
-  if(state.tool==='node'){if(i>=0)return;const label=prompt('Nombre del nodo:',String.fromCharCode(65+state.nodes.length%26)+(state.nodes.length>=26?Math.floor(state.nodes.length/26):''));if(label===null)return;state.nodes.push({x,y,label:label.trim()||`N${state.nodes.length+1}`});}
+  if(state.tool==='node'){if(i>=0)return;const label=prompt('Nombre del nodo:',String.fromCharCode(65+state.nodes.length%26)+(state.nodes.length>=26?Math.floor(state.nodes.length/26):''));if(label===null)return;state.nodes.push({x,y,label:label.trim()||`N${state.nodes.length+1}`});renderList();}
   else if(state.tool==='edge'){if(i<0){msg('Toca el centro de un nodo.');return;}if(state.pending===null){state.pending=i;msg('Selecciona el nodo de destino.');}else{if(state.pending!==i){if(!state.edges.some(e=>(e.a===i&&e.b===state.pending)||(e.b===i&&e.a===state.pending))){state.edges.push({a:state.pending,b:i,weight:1});renderList();}}state.pending=null;msg('Arista creada. Ajusta su peso en la lista.');}}
   else if(state.tool==='delete'&&i>=0){state.nodes.splice(i,1);state.edges=state.edges.filter(e=>e.a!==i&&e.b!==i).map(e=>({...e,a:e.a>i?e.a-1:e.a,b:e.b>i?e.b-1:e.b}));renderList();}draw();});
  $('image-import-reset').onclick=()=>{state.nodes=[];state.edges=[];state.pending=null;renderList();draw();};
- // Heuristic for detecting dark circular outlines: radial sampling with nonmaximum suppression.
- $('image-import-detect').onclick=()=>{if(!state.image)return msg('Primero carga una imagen.');const w=canvas.width,h=canvas.height;const data=ctx.getImageData(0,0,w,h).data;const dark=(x,y)=>{x=Math.round(x);y=Math.round(y);if(x<0||y<0||x>=w||y>=h)return false;const k=(y*w+x)*4;return (data[k]*.299+data[k+1]*.587+data[k+2]*.114)<125;};
-  const candidates=[];const step=Math.max(6,Math.round(Math.min(w,h)/100));const radii=[12,16,20,25,30,38,46,56,70].filter(r=>r<Math.min(w,h)/5);
-  for(let y=70;y<h-20;y+=step)for(let x=20;x<w-20;x+=step){let best=0;for(const r of radii){let hits=0;for(let a=0;a<24;a++){const t=a*Math.PI/12;if(dark(x+Math.cos(t)*r,y+Math.sin(t)*r))hits++;}best=Math.max(best,hits/24);}if(best>=.77)candidates.push({x,y,score:best});}
-  candidates.sort((a,b)=>b.score-a.score);let count=0;for(const c of candidates){if(state.nodes.length>=50)break;if(nearest(c.x,c.y)>=0)continue;if(state.nodes.some(n=>Math.hypot(n.x-c.x,n.y-c.y)<34))continue;state.nodes.push({x:c.x,y:c.y,label:`N${state.nodes.length+1}`});count++;}draw();msg(count?`Se detectaron ${count} posibles nodos. Verifica su posición y agrega las aristas manualmente.`:'No se detectaron círculos con suficiente confianza. Marca los nodos manualmente.');};
+ // Analiza siempre los píxeles originales, no las marcas del editor.
+ function imagePixels(){const off=document.createElement('canvas');off.width=canvas.width;off.height=canvas.height;const c=off.getContext('2d',{willReadFrequently:true});c.drawImage(state.image,0,0,off.width,off.height);return {data:c.getImageData(0,0,off.width,off.height).data,w:off.width,h:off.height};}
+ function detectGraph(){
+  if(!state.image){msg('Primero carga una imagen.');return;}
+  const {data,w,h}=imagePixels();const seen=new Uint8Array(w*h);const components=[];
+  // Detectar regiones azules/cian saturadas (nodos rellenos como los del ejemplo).
+  const isNode=(idx)=>{const k=idx*4,r=data[k],g=data[k+1],b=data[k+2];return b>105&&b>r*1.17&&g>r*1.18&&g>75&&b>g*.82&&Math.max(r,g,b)-Math.min(r,g,b)>32;};
+  for(let y=0;y<h;y+=1)for(let x=0;x<w;x+=1){const root=y*w+x;if(seen[root]||!isNode(root))continue;const q=[root];seen[root]=1;let minx=x,maxx=x,miny=y,maxy=y,sx=0,sy=0,n=0;
+   for(let head=0;head<q.length;head++){const v=q[head],vx=v%w,vy=(v/w)|0;n++;sx+=vx;sy+=vy;minx=Math.min(minx,vx);maxx=Math.max(maxx,vx);miny=Math.min(miny,vy);maxy=Math.max(maxy,vy);
+    for(const z of [v-1,v+1,v-w,v+w]){if(z<0||z>=w||seen[z])continue;const zx=z%w,zy=(z/w)|0;if(Math.abs(zx-vx)+Math.abs(zy-vy)!==1)continue;if(isNode(z)){seen[z]=1;q.push(z);}}
+   }
+   const bw=maxx-minx+1,bh=maxy-miny+1,area=bw*bh;
+   if(n>=65&&bw>=12&&bh>=12&&bw/bh>.55&&bw/bh<1.65&&n/area>.28&&n/area<.97&&bw<w*.23&&bh<h*.23)components.push({x:sx/n,y:sy/n,r:Math.max(bw,bh)/2,area:n});
+  }
+  components.sort((a,b)=>b.area-a.area);const picked=[];for(const c of components){if(picked.length>=60)break;if(picked.some(n=>Math.hypot(n.x-c.x,n.y-c.y)<Math.max(n.r,c.r)*1.4))continue;picked.push(c);}
+  if(!picked.length){msg('No detecté nodos de color. Para grafos dibujados a mano, agrega nodos y conexiones manualmente.');return;}
+  picked.sort((a,b)=>a.y-b.y||a.x-b.x);
+  state.nodes=picked.map((n,i)=>({x:n.x,y:n.y,label:String(i+1),r:n.r}));state.edges=[];state.pending=null;
+  // Evaluar segmentos rectos oscuros entre cada par de centros, evitando círculos y cruces.
+  const gray=(x,y)=>{x=Math.round(x);y=Math.round(y);if(x<0||y<0||x>=w||y>=h)return 255;const k=(y*w+x)*4;return data[k]*.299+data[k+1]*.587+data[k+2]*.114;};
+  for(let i=0;i<state.nodes.length;i++)for(let j=i+1;j<state.nodes.length;j++){
+   const a=state.nodes[i],b=state.nodes[j],len=Math.hypot(b.x-a.x,b.y-a.y);if(len<25)continue;
+   let valid=0,hits=0,blocks=0;const count=Math.max(20,Math.round(len/2));
+   for(let t=0;t<=count;t++){const u=t/count,x=a.x+(b.x-a.x)*u,y=a.y+(b.y-a.y)*u;
+    if(Math.hypot(x-a.x,y-a.y)<a.r+5||Math.hypot(x-b.x,y-b.y)<b.r+5)continue;
+    if(state.nodes.some((n,k)=>k!==i&&k!==j&&Math.hypot(x-n.x,y-n.y)<n.r+5)){blocks++;continue;}
+    valid++;const dx=-(b.y-a.y)/len,dy=(b.x-a.x)/len;
+    if(Math.min(gray(x,y),gray(x+dx*1.5,y+dy*1.5),gray(x-dx*1.5,y-dy*1.5))<185)hits++;
+   }
+   if(valid>=10&&valid/count>.43&&hits/valid>.69&&blocks/count<.3)state.edges.push({a:i,b:j,weight:1});
+  }
+  renderList();draw();msg(`Detecté ${state.nodes.length} nodos y ${state.edges.length} posibles aristas. IMPORTANTE: las etiquetas son provisionales y los pesos valen 1; revisa y corrige antes de resolver.`);
+ }
+ $('image-import-detect').onclick=detectGraph;
  $('image-import-apply').onclick=()=>{if(!state.nodes.length)return msg('Marca al menos un nodo.');if(cy.elements().length&&!confirm('¿Reemplazar el grafo actual por el importado?'))return;cy.elements().remove();let maxId=0;state.nodes.forEach((n,i)=>{const id=`img_${i+1}`;cy.add({group:'nodes',data:{id,label:n.label},position:{x:n.x,y:n.y}});maxId++;});state.edges.forEach((e,i)=>{cy.add({group:'edges',data:{id:`img_edge_${i}`,source:`img_${e.a+1}`,target:`img_${e.b+1}`,weight:e.weight,shape:'straight',curveDistance:65}});});cy.fit(cy.elements(),40);nextId=Math.max(nextId,maxId+1);updateStats();$('image-import-dialog').hidden=true;setMode('move');setStatus(`Grafo importado: ${state.nodes.length} nodos y ${state.edges.length} aristas. Ya puedes resolverlo.`);};
 })();

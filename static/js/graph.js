@@ -89,9 +89,13 @@ cy.on('tapstart','edge',event=>{
   const point=original?.touches?.[0] || original?.changedTouches?.[0] || original;
   if(!point || !Number.isFinite(point.clientX) || !Number.isFinite(point.clientY))return;
   const edge=event.target;
+  // Desactivar el paneo ANTES del primer movimiento táctil: Cytoscape
+  // puede iniciar el desplazamiento si se desactiva solo después del umbral.
+  const oldPanning=cy.userPanningEnabled();
+  cy.userPanningEnabled(false);
   directCurveDrag={edge,startX:point.clientX,startY:point.clientY,
     startDistance:Number(edge.data('curveDistance'))||0,
-    moved:false,oldPanning:cy.userPanningEnabled()};
+    moved:false,oldPanning};
 });
 function moveDirectCurve(event){
   const drag=directCurveDrag;
@@ -101,7 +105,6 @@ function moveDirectCurve(event){
   if(!drag.moved && Math.hypot(dx,dy)<7)return;
   if(!drag.moved){
     drag.moved=true;
-    cy.userPanningEnabled(false);
     drag.edge.select();
     lastEdgeTap=null;
   }
@@ -114,13 +117,24 @@ function moveDirectCurve(event){
 }
 function endDirectCurveDrag(){
   if(!directCurveDrag)return;
+  cy.userPanningEnabled(directCurveDrag.oldPanning);
   if(directCurveDrag.moved){
-    cy.userPanningEnabled(directCurveDrag.oldPanning);
     lastEdgeTap=null;
     setStatus('Curvatura ajustada. Puedes arrastrar nuevamente la arista.');
   }
   directCurveDrag=null;
 }
+// Capturar el gesto sobre el lienzo antes de que Cytoscape lo interprete
+// como paneo. El seguimiento de la curva continúa desde document.
+const cyContainer=document.getElementById('cy');
+cyContainer.addEventListener('touchmove',event=>{
+  if(directCurveDrag && event.touches.length===1){
+    if(event.cancelable)event.preventDefault();
+    event.stopPropagation();
+    const t=event.touches[0];
+    moveDirectCurve({clientX:t.clientX,clientY:t.clientY,cancelable:false});
+  }
+},{capture:true,passive:false});
 // En móviles algunos navegadores envían touchmove en vez de pointermove.
 // Los listeners son pasivos solo donde no se necesita cancelar el gesto.
 document.addEventListener('pointermove',moveDirectCurve,{passive:false});

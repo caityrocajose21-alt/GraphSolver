@@ -64,3 +64,9 @@ header{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .image-source-button:nth-child(2){background:#0f766e}
 .visually-hidden-file{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
 @media(max-width:600px){.image-import-sources{grid-template-columns:1fr}.header-import-button{margin-left:0;width:100%}.image-import-panel{padding:12px}.image-import-header h2{font-size:18px}}
+
+/* Reconocimiento de imágenes con API externa */
+.image-ai-controls{display:grid;gap:8px;margin:14px 0;padding:12px;background:#edf4ff;border:1px solid #bfd2f5;border-radius:10px}
+.image-ai-controls label{font-weight:700}.image-ai-controls input{width:100%;box-sizing:border-box;border:1px solid #94a3b8;border-radius:7px;padding:10px;font-size:15px}
+.image-ai-controls button{background:#2454a7;color:white;border:0;border-radius:8px;min-height:46px;font-weight:700;cursor:pointer}.image-ai-controls button:disabled{opacity:.6;cursor:wait}
+.image-ai-controls small{color:#475569}.import-edge-row input[aria-invalid="true"]{border-color:#dc2626;background:#fff2f2}

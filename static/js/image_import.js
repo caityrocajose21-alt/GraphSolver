@@ -1,14 +1,14 @@
 'use strict';
 (() => {
  const $=id=>document.getElementById(id), canvas=$('image-import-canvas'),ctx=canvas.getContext('2d');
- const state={image:null,nodes:[],edges:[],tool:'node',pending:null,selected:null};
+ const state={image:null,nodes:[],edges:[],tool:'node',pending:null,selected:null,aiImported:false};
  const msg=t=>$('image-import-message').textContent=t;
  function draw(){const w=canvas.width,h=canvas.height;ctx.clearRect(0,0,w,h);if(state.image)ctx.drawImage(state.image,0,0,w,h);
-  state.edges.forEach((e,i)=>{const a=state.nodes[e.a],b=state.nodes[e.b];if(!a||!b)return;ctx.strokeStyle='#10b981';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();const x=(a.x+b.x)/2,y=(a.y+b.y)/2;ctx.font='bold 16px sans-serif';ctx.fillStyle='#fff';ctx.fillRect(x-19,y-17,38,22);ctx.fillStyle='#065f46';ctx.fillText(String(e.weight),x-12,y);});
+  state.edges.forEach((e,i)=>{const a=state.nodes[e.a],b=state.nodes[e.b];if(!a||!b)return;ctx.strokeStyle='#10b981';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();const x=(a.x+b.x)/2,y=(a.y+b.y)/2;ctx.font='bold 16px sans-serif';ctx.fillStyle='#fff';ctx.fillRect(x-19,y-17,38,22);ctx.fillStyle='#065f46';ctx.fillText(e.weight===null?'?':String(e.weight),x-12,y);});
   state.nodes.forEach((n,i)=>{ctx.beginPath();ctx.arc(n.x,n.y,17,0,Math.PI*2);ctx.fillStyle=i===state.pending?'#f59e0b':'#2563eb';ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();ctx.fillStyle='white';ctx.font='bold 13px sans-serif';ctx.textAlign='center';ctx.fillText(n.label,n.x,n.y+5);});ctx.textAlign='start';
   $('image-import-count').textContent=`${state.nodes.length} nodos · ${state.edges.length} aristas`;
  }
- function renderList(){const area=$('image-import-list');area.replaceChildren();state.nodes.forEach((n,i)=>{const row=document.createElement('div');row.className='import-edge-row';const label=document.createElement('span');label.textContent=`Nodo ${i+1}`;const input=document.createElement('input');input.value=n.label;input.setAttribute('aria-label',`Nombre del nodo ${i+1}`);input.onchange=()=>{n.label=input.value.trim()||String(i+1);draw();renderList();};row.append(label,input);area.appendChild(row);});state.edges.forEach((e,i)=>{const row=document.createElement('div');row.className='import-edge-row';const label=document.createElement('span');label.textContent=`${state.nodes[e.a]?.label} — ${state.nodes[e.b]?.label}`;const input=document.createElement('input');input.type='number';input.step='any';input.value=e.weight;input.setAttribute('aria-label','Peso de arista');input.onchange=()=>{if(Number.isFinite(Number(input.value))){e.weight=Number(input.value);draw();}};const del=document.createElement('button');del.textContent='×';del.title='Eliminar arista';del.onclick=()=>{state.edges.splice(i,1);renderList();draw();};row.append(label,input,del);area.appendChild(row);});}
+ function renderList(){const area=$('image-import-list');area.replaceChildren();state.nodes.forEach((n,i)=>{const row=document.createElement('div');row.className='import-edge-row';const label=document.createElement('span');label.textContent=`Nodo ${i+1}`;const input=document.createElement('input');input.value=n.label;input.setAttribute('aria-label',`Nombre del nodo ${i+1}`);input.onchange=()=>{n.label=input.value.trim()||String(i+1);draw();renderList();};row.append(label,input);area.appendChild(row);});state.edges.forEach((e,i)=>{const row=document.createElement('div');row.className='import-edge-row';const label=document.createElement('span');label.textContent=`${state.nodes[e.a]?.label} — ${state.nodes[e.b]?.label}`;const input=document.createElement('input');input.type='number';input.step='any';input.value=e.weight??'';input.placeholder='Sin peso';input.setAttribute('aria-label','Peso de arista');input.setAttribute('aria-invalid',e.weight===null?'true':'false');input.onchange=()=>{const v=input.value.trim();e.weight=v!==''&&Number.isFinite(Number(v))?Number(v):null;input.setAttribute('aria-invalid',e.weight===null?'true':'false');draw();};const del=document.createElement('button');del.textContent='×';del.title='Eliminar arista';del.onclick=()=>{state.edges.splice(i,1);renderList();draw();};row.append(label,input,del);area.appendChild(row);});}
  function setTool(tool){state.tool=tool;state.pending=null;document.querySelectorAll('[data-image-tool]').forEach(b=>b.classList.toggle('active',b.dataset.imageTool===tool));draw();}
  document.querySelectorAll('[data-image-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.imageTool));
  const openImporter=()=>{$('image-import-dialog').hidden=false;};
@@ -16,7 +16,7 @@
  $('image-import-gallery').onclick=()=>{$('image-import-file').click();};
  $('image-import-camera').onclick=()=>{$('image-import-camera-file').click();};
  $('image-import-close').onclick=()=>{$('image-import-dialog').hidden=true;};
- function loadSelectedImage(ev){const file=ev.target.files?.[0];if(!file)return;if(!file.type.startsWith('image/')){msg('Selecciona una imagen válida.');return;}const url=URL.createObjectURL(file),img=new Image();img.onload=()=>{URL.revokeObjectURL(url);state.image=img;const scale=Math.min(1,1000/img.width,850/img.height);canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);state.nodes=[];state.edges=[];state.pending=null;renderList();draw();msg('Imagen cargada. Analizando nodos y conexiones…');detectGraph();};img.onerror=()=>{URL.revokeObjectURL(url);msg('No se pudo abrir la imagen.');};img.src=url;}
+ function loadSelectedImage(ev){const file=ev.target.files?.[0];if(!file)return;if(!file.type.startsWith('image/')){msg('Selecciona una imagen válida.');return;}const url=URL.createObjectURL(file),img=new Image();img.onload=()=>{URL.revokeObjectURL(url);state.image=img;const scale=Math.min(1,1000/img.width,850/img.height);canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);state.nodes=[];state.edges=[];state.pending=null;state.aiImported=false;renderList();draw();msg('Imagen cargada. Analizando nodos y conexiones…');detectGraph();};img.onerror=()=>{URL.revokeObjectURL(url);msg('No se pudo abrir la imagen.');};img.src=url;}
  $('image-import-file').addEventListener('change',loadSelectedImage);
  $('image-import-camera-file').addEventListener('change',loadSelectedImage);
  function nearest(x,y){let best=-1,dist=26;state.nodes.forEach((n,i)=>{const d=Math.hypot(n.x-x,n.y-y);if(d<dist){best=i;dist=d;}});return best;}
@@ -108,6 +108,44 @@
   }
   renderList();draw();msg(`Detección experimental: ${state.nodes.length} nodos y ${state.edges.length} posibles aristas. Revisa las marcas y corrige los pesos antes de importar; los pesos predeterminados son 1.`);
  }
+ // Reconocimiento multimodal mediante API externa: las credenciales viven SOLO en el servidor.
+ const aiUrl=$('image-ai-url'),aiBtn=$('image-ai-analyze');
+ try{aiUrl.value=localStorage.getItem('graphsolver_ai_url')||'';}catch(_e){}
+ aiUrl.addEventListener('change',()=>{try{localStorage.setItem('graphsolver_ai_url',aiUrl.value.trim());}catch(_e){}});
+ function sanitizeAI(data){
+  if(!data||!Array.isArray(data.nodes)||!Array.isArray(data.edges))throw new Error('La IA no devolvió nodos y aristas válidos.');
+  if(data.nodes.length>100||data.edges.length>500)throw new Error('El grafo excede el límite de seguridad.');
+  const ids=new Map(),nodes=[];
+  for(const n of data.nodes){const id=String(n.id??'').trim();if(!id||ids.has(id))throw new Error('Hay identificadores de nodos vacíos o repetidos.');
+   const x=Number(n.x),y=Number(n.y);if(!Number.isFinite(x)||!Number.isFinite(y))throw new Error('La IA no devolvió posiciones válidas.');
+   ids.set(id,nodes.length);nodes.push({x:Math.max(0,Math.min(canvas.width,x*canvas.width)),y:Math.max(0,Math.min(canvas.height,y*canvas.height)),label:String(n.label||id).slice(0,40),r:18});}
+  const edges=[],seen=new Set();for(const e of data.edges){const a=ids.get(String(e.source)),b=ids.get(String(e.target));if(a===undefined||b===undefined||a===b)continue;
+   const key=[Math.min(a,b),Math.max(a,b)].join(':');if(seen.has(key))continue;seen.add(key);
+   const w=e.weight===null||e.weight===undefined||e.weight===''?null:Number(e.weight);
+   edges.push({a,b,weight:w!==null&&Number.isFinite(w)?w:null});}
+  return {nodes,edges};
+ }
+ aiBtn.addEventListener('click',async()=>{
+  if(!state.image){msg('Primero sube una imagen desde la galería o cámara.');return;}
+  const base=aiUrl.value.trim().replace(/\/+$/,'');let u;
+  try{u=new URL(base);if(u.protocol!=='https:'&&u.hostname!=='localhost'&&u.hostname!=='127.0.0.1')throw Error();}catch(_e){msg('Introduce una URL HTTPS válida de tu API en Render.');return;}
+  aiBtn.disabled=true;msg('Analizando imagen con IA… puede tardar unos segundos.');
+  try{
+   const blob=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('No se pudo preparar la imagen.')),'image/jpeg',.88));
+   // El canvas puede contener marcas: generamos la imagen original sin superposiciones.
+   const clean=document.createElement('canvas');clean.width=canvas.width;clean.height=canvas.height;clean.getContext('2d').drawImage(state.image,0,0,clean.width,clean.height);
+   const cleanBlob=await new Promise((resolve,reject)=>clean.toBlob(b=>b?resolve(b):reject(new Error('No se pudo preparar la imagen.')),'image/jpeg',.9));
+   const body=new FormData();body.append('image',cleanBlob,'grafo.jpg');
+   const response=await fetch(base+'/analyze',{method:'POST',body});
+   let payload;try{payload=await response.json();}catch(_e){throw new Error('Respuesta no válida del servidor.');}
+   if(!response.ok)throw new Error(typeof payload.detail==='string'?payload.detail:'Error del servicio de IA ('+response.status+').');
+   const result=sanitizeAI(payload);state.nodes=result.nodes;state.edges=result.edges;state.pending=null;state.aiImported=true;
+   renderList();draw();
+   const missing=state.edges.filter(e=>e.weight===null).length;
+   msg(`IA: ${state.nodes.length} nodos y ${state.edges.length} aristas propuestas. ${missing} pesos sin identificar. Comprueba cuidadosamente todas las conexiones y etiquetas antes de importar.`);
+  }catch(err){msg('No se pudo analizar: '+err.message+' Revisa la URL, conexión y configuración CORS del servidor.');}
+  finally{aiBtn.disabled=false;}
+ });
  // OCR opcional: Tesseract se carga solamente al solicitar reconocimiento.
  let ocrLoading=null;
  function loadOCR(){
@@ -170,5 +208,5 @@
  }
  $('image-import-ocr').onclick=recognizeNumbers;
  $('image-import-detect').onclick=detectGraph;
- $('image-import-apply').onclick=()=>{if(!state.nodes.length)return msg('Marca al menos un nodo.');if(cy.elements().length&&!confirm('¿Reemplazar el grafo actual por el importado?'))return;cy.elements().remove();let maxId=0;state.nodes.forEach((n,i)=>{const id=`img_${i+1}`;cy.add({group:'nodes',data:{id,label:n.label},position:{x:n.x,y:n.y}});maxId++;});state.edges.forEach((e,i)=>{cy.add({group:'edges',data:{id:`img_edge_${i}`,source:`img_${e.a+1}`,target:`img_${e.b+1}`,weight:e.weight,shape:'straight',curveDistance:65}});});cy.fit(cy.elements(),40);nextId=Math.max(nextId,maxId+1);updateStats();$('image-import-dialog').hidden=true;setMode('move');setStatus(`Grafo importado: ${state.nodes.length} nodos y ${state.edges.length} aristas. Ya puedes resolverlo.`);};
+ $('image-import-apply').onclick=()=>{if(!state.nodes.length)return msg('Marca al menos un nodo.');if(state.edges.some(e=>e.weight===null)){msg('Hay aristas sin peso reconocido. Completa los pesos antes de importar o confirma el modo no ponderado.');return;}if(cy.elements().length&&!confirm('¿Reemplazar el grafo actual por el importado?'))return;cy.elements().remove();let maxId=0;state.nodes.forEach((n,i)=>{const id=`img_${i+1}`;cy.add({group:'nodes',data:{id,label:n.label},position:{x:n.x,y:n.y}});maxId++;});state.edges.forEach((e,i)=>{cy.add({group:'edges',data:{id:`img_edge_${i}`,source:`img_${e.a+1}`,target:`img_${e.b+1}`,weight:e.weight,shape:'straight',curveDistance:65}});});cy.fit(cy.elements(),40);nextId=Math.max(nextId,maxId+1);updateStats();$('image-import-dialog').hidden=true;setMode('move');setStatus(`Grafo importado: ${state.nodes.length} nodos y ${state.edges.length} aristas. Ya puedes resolverlo.`);};
 })();

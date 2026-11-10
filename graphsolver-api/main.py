@@ -113,7 +113,8 @@ async def analyze(image: UploadFile = File(...)):
             raise ValueError("El modelo devolvió una respuesta vacía.")
         data = json.loads(text)
     except Exception as exc:
-        # No exponer claves ni detalles internos del proveedor al navegador.
+        import logging
+        logging.exception("Error durante el análisis con Gemini")
         message = str(exc).lower()
         if "quota" in message or "resource_exhausted" in message or "429" in message:
             raise HTTPException(
